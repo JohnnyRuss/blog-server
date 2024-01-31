@@ -11,6 +11,7 @@ type ArticleT = Document & {
   likes: Array<MongooseTypes.ObjectId>;
   updatedAt: string;
   createdAt: string;
+  picked: boolean;
 };
 
 type ArticleMethodsT = {};

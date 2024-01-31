@@ -46,6 +46,10 @@ const ArticleSchema = new Schema<ArticleT, ArticleModelT, ArticleMethodsT>(
       ref: "User",
       default: [],
     },
+
+    picked: {
+      type: Boolean,
+    },
   },
   { timestamps: true }
 );

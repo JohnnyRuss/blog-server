@@ -19,6 +19,7 @@ import categoryRoutes from "./routes/category.routes";
 import userListRoutes from "./routes/userList.routes";
 import userTraceRoutes from "./routes/userTrace.routes";
 import userFollowRoutes from "./routes/userFollow.routes";
+import dashboardRoutes from "./routes/dashboard.routes";
 
 const App = express();
 
@@ -46,6 +47,7 @@ App.use("/api/v1/articles", articleRoutes);
 App.use("/api/v1/categories", categoryRoutes);
 App.use("/api/v1/lists", userListRoutes);
 App.use("/api/v1/trace", userTraceRoutes);
+App.use("/api/v1/dashboard", dashboardRoutes);
 
 App.get("/views", async (req, res, next) => {
   res.status(200).render("welcome", {

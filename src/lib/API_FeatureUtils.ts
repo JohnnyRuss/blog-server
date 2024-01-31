@@ -30,31 +30,27 @@ class API_FeatureUtils {
       )
     );
 
-    const queryObject: {
-      [key: string]:
-        | string
-        | Array<string>
-        | number
-        | {
-            [key: string]: string | Array<string> | number;
-          }
-        | Array<{ [key: string]: string | { [key: string]: string } }>;
-    } = {};
+    const queryObject: { [key: string]: any } = {};
+
+    for (const [key, value] of Object.entries(convertedFilter)) {
+      queryObject[key] = value;
+    }
 
     return queryObject;
   }
 
   getArticlesQueryObject() {
-    const queryObject = this.getQueryObject(["search"], []);
+    const queryObject = this.getQueryObject(["search", "picked"], []);
 
     const query: { [key: string]: any } = {};
 
-    if (queryObject.search) {
+    if (queryObject.search)
       query["$or"] = [
         { slug: { $regex: queryObject.search, $options: "i" } },
         { title: { $regex: queryObject.search, $options: "i" } },
       ];
-    }
+
+    if (queryObject.picked) query.picked = true;
 
     return query;
   }
