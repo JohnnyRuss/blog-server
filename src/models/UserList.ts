@@ -14,11 +14,14 @@ const UserListSchema = new Schema<UserListT, UserListMethodsT, UserListModelT>(
     title: {
       type: String,
       required: true,
-      ref: "Category",
+    },
+    description: {
+      type: String,
     },
     articles: {
       type: [Schema.Types.ObjectId],
       ref: "Article",
+      default: [],
     },
     privacy: {
       type: String,
@@ -29,6 +32,6 @@ const UserListSchema = new Schema<UserListT, UserListMethodsT, UserListModelT>(
   { timestamps: true }
 );
 
-const UserList = model<UserListT, UserListMethodsT>("UserList", UserListSchema);
+const UserList = model<UserListT, UserListModelT>("UserList", UserListSchema);
 
 export default UserList;

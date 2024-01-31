@@ -75,16 +75,39 @@ export const getWhoToFollow = Async(async (req, res, next) => {
       $limit: 6,
     },
     {
+      $lookup: {
+        localField: "_id",
+        as: "author",
+        from: "users",
+        foreignField: "_id",
+        pipeline: [
+          {
+            $project: {
+              _id: 1,
+              fullname: 1,
+              username: 1,
+              email: 1,
+              avatar: 1,
+              bio: 1,
+            },
+          },
+        ],
+      },
+    },
+    {
+      $unwind: "$author",
+    },
+    {
       $project: {
-        _id: 1,
+        _id: "$author._id",
+        fullname: "$author.fullname",
+        email: "$author.email",
+        bio: "$author.bio",
+        username: "$author.username",
+        avatar: "$author.avatar",
       },
     },
   ]);
 
-  const authorIds = authors.map((author) => author._id.toString());
-  const usersToFollow = await User.find({ _id: authorIds }).select(
-    "_id username email avatar fullname bio"
-  );
-
-  res.status(200).json(usersToFollow);
+  res.status(200).json(authors);
 });

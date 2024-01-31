@@ -263,6 +263,96 @@ export const getAllArticles = Async(async (req, res, next) => {
   });
 });
 
+export const getRelatedArticles = Async(async (req, res, next) => {
+  const { slug } = req.params;
+
+  const article = await Article.findOne({ slug });
+
+  const trace: Array<mongoose.Types.ObjectId> = article?.categories ?? [];
+
+  const data = await Article.aggregate([
+    {
+      $unset: ["__v", "updatedAt"],
+    },
+
+    {
+      $match: {
+        slug: { $ne: slug },
+        categories: { $in: trace },
+      },
+    },
+
+    {
+      $addFields: {
+        common: {
+          $size: {
+            $setIntersection: ["$categories", trace],
+          },
+        },
+      },
+    },
+
+    {
+      $sort: {
+        common: -1,
+      },
+    },
+
+    {
+      $limit: 6,
+    },
+
+    {
+      $lookup: {
+        from: "users",
+        localField: "author",
+        foreignField: "_id",
+        as: "author",
+        pipeline: [
+          {
+            $project: {
+              _id: 1,
+              email: 1,
+              avatar: 1,
+              username: 1,
+              fullname: 1,
+            },
+          },
+        ],
+      },
+    },
+
+    {
+      $lookup: {
+        from: "categories",
+        localField: "categories",
+        foreignField: "_id",
+        as: "categories",
+        pipeline: [
+          {
+            $project: {
+              _id: 1,
+              title: 1,
+              color: 1,
+              query: 1,
+            },
+          },
+        ],
+      },
+    },
+
+    {
+      $unwind: "$author",
+    },
+
+    {
+      $unset: "common",
+    },
+  ]);
+
+  res.status(200).json(data);
+});
+
 // UTILS
 
 async function getCategoryIds(

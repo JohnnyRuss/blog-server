@@ -3,6 +3,7 @@ import { Types as MongooseTypes, Model, Document } from "mongoose";
 type UserListT = Document & {
   author: MongooseTypes.ObjectId;
   title: string;
+  description: string;
   articles: [MongooseTypes.ObjectId];
   privacy: string;
 };

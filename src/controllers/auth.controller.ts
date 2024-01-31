@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import { User, UserTrace } from "../models";
+import { User, UserTrace, UserList } from "../models";
 import { Async, AppError, JWT, Email } from "../lib";
 import { NODE_MODE } from "../config/env";
 
@@ -19,6 +19,12 @@ export const googleLogin = Async(async (req, res, next) => {
 
     await UserTrace.create({
       user: user._id,
+    });
+
+    await UserList.create({
+      title: "Reading List",
+      author: user._id,
+      privacy: "PRIVATE",
     });
 
     await Email.sendWelcome({ to: email, username: username });
@@ -62,6 +68,12 @@ export const signUp = Async(async (req, res, next) => {
 
   await UserTrace.create({
     user: newUser._id,
+  });
+
+  await UserList.create({
+    title: "Reading List",
+    author: newUser._id,
+    privacy: "PRIVATE",
   });
 
   const { accessToken } = JWT.assignToken({

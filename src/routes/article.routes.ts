@@ -10,6 +10,8 @@ Router.route("/")
 
 Router.route("/top").get(saveUser, articleController.getTopArticle);
 
+Router.route("/related/:slug").get(articleController.getRelatedArticles);
+
 Router.route("/:slug")
   .put(checkAuth, articleController.updateArticle)
   .delete(checkAuth, articleController.deleteArticle)
