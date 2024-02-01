@@ -3,25 +3,31 @@ import { Async, AppError } from "../lib";
 import { UserList, User } from "../models";
 
 export const getUserLists = Async(async (req, res, next) => {
+  const { limit } = req.query;
   const { userId } = req.params;
   const incomingUser = req.incomingUser;
 
-  let lists = await UserList.find({ author: userId })
+  const query = UserList.find({ author: userId })
     .populate({
       path: "author",
       select: "_id email username fullname avatar",
     })
     .populate({
-      path: "articles",
+      path: "articles.article",
       select: "_id slug title body author categories createdAt picked",
       populate: [
         { path: "author", select: "_id username fullname avatar" },
         { path: "categories", select: "_id title query color thumbnail" },
       ],
+      options: { limit: 3 },
     });
 
+  if (limit) query.limit(+limit);
+
+  let lists = await query;
+
   lists =
-    lists[0]?.author === incomingUser._id
+    lists[0]?.author._id.toString() === incomingUser._id
       ? lists
       : lists.filter((list) => list.privacy !== "PRIVATE");
 
