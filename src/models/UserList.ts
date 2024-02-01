@@ -11,18 +11,26 @@ const UserListSchema = new Schema<UserListT, UserListMethodsT, UserListModelT>(
       type: Schema.Types.ObjectId,
       ref: "User",
     },
+
     title: {
       type: String,
       required: true,
     },
+
     description: {
       type: String,
     },
+
     articles: {
-      type: [Schema.Types.ObjectId],
-      ref: "Article",
+      type: [
+        {
+          article: { type: Schema.Types.ObjectId, ref: "Article" },
+          savedAt: { type: Date, default: new Date() },
+        },
+      ],
       default: [],
     },
+
     privacy: {
       type: String,
       enum: ["PUBLIC", "PRIVATE"],

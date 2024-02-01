@@ -8,6 +8,10 @@ Router.route("/")
   .get(checkAuth, userListController.getListsToAdd)
   .post(checkAuth, userListController.createList);
 
+Router.route("/user/saved").get(
+  checkAuth,
+  userListController.getRecentlySavedArticles
+);
 Router.route("/user/:userId").get(saveUser, userListController.getUserLists);
 
 Router.route("/:listId").post(checkAuth, userListController.addToList);

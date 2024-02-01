@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { Async, AppError } from "../lib";
 import { UserList, User } from "../models";
 
@@ -45,13 +46,13 @@ export const addToList = Async(async (req, res, next) => {
   else if (list.author.toString() !== currUser._id)
     return next(new AppError(403, "You are not authorized for this operation"));
 
-  if (list.articles.some((article) => article.toString() === articleId))
-    await UserList.findByIdAndUpdate(articleId, {
-      $pull: { articles: articleId },
+  if (list.articles.some((article) => article.article.toString() === articleId))
+    await UserList.findByIdAndUpdate(listId, {
+      $pull: { articles: { article: articleId } },
     });
   else
-    await UserList.findByIdAndUpdate(articleId, {
-      $push: { articles: articleId },
+    await UserList.findByIdAndUpdate(listId, {
+      $push: { articles: { article: articleId } },
     });
 
   res.status(204).json("article added to list");
@@ -69,4 +70,112 @@ export const createList = Async(async (req, res, next) => {
   }).save();
 
   res.status(201).json(list);
+});
+
+export const getRecentlySavedArticles = Async(async (req, res, next) => {
+  const currUser = req.user;
+
+  const articles = await UserList.aggregate([
+    {
+      $match: { author: new mongoose.Types.ObjectId(currUser._id) },
+    },
+
+    {
+      $project: { articles: 1 },
+    },
+
+    {
+      $unwind: "$articles",
+    },
+
+    {
+      $group: {
+        _id: "$articles.article",
+        savedAt: { $first: "$articles.savedAt" },
+      },
+    },
+
+    {
+      $sort: {
+        savedAt: -1,
+      },
+    },
+
+    {
+      $limit: 4,
+    },
+
+    {
+      $lookup: {
+        from: "articles",
+        localField: "_id",
+        foreignField: "_id",
+        as: "article",
+        pipeline: [
+          {
+            $lookup: {
+              from: "users",
+              localField: "author",
+              foreignField: "_id",
+              as: "author",
+              pipeline: [
+                {
+                  $project: {
+                    _id: 1,
+                    fullname: 1,
+                    email: 1,
+                    bio: 1,
+                    username: 1,
+                    avatar: 1,
+                  },
+                },
+              ],
+            },
+          },
+          {
+            $lookup: {
+              from: "categories",
+              localField: "categories",
+              foreignField: "_id",
+              as: "categories",
+              pipeline: [
+                {
+                  $project: {
+                    __v: 0,
+                  },
+                },
+              ],
+            },
+          },
+          {
+            $unwind: "$author",
+          },
+        ],
+      },
+    },
+
+    {
+      $project: {
+        article: 1,
+      },
+    },
+
+    {
+      $unwind: "$article",
+    },
+
+    {
+      $project: {
+        _id: "$article._id",
+        title: "$article.title",
+        author: "$article.author",
+        categories: "$article.categories",
+        body: "$article.body",
+        slug: "$article.slug",
+        createdAt: "$article.createdAt",
+      },
+    },
+  ]);
+
+  res.status(200).json(articles);
 });

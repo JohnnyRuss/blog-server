@@ -4,7 +4,7 @@ type UserListT = Document & {
   author: MongooseTypes.ObjectId;
   title: string;
   description: string;
-  articles: [MongooseTypes.ObjectId];
+  articles: [{ article: MongooseTypes.ObjectId; savedAt: string }];
   privacy: string;
 };
 
