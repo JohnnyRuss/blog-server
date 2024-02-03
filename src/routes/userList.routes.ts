@@ -12,7 +12,18 @@ Router.route("/user/saved").get(
   checkAuth,
   userListController.getRecentlySavedArticles
 );
+
 Router.route("/user/:userId").get(saveUser, userListController.getUserLists);
+
+Router.route("/:listId/articles").get(
+  saveUser,
+  userListController.getListArticles
+);
+
+Router.route("/:listId/details").get(
+  saveUser,
+  userListController.getListDetails
+);
 
 Router.route("/:listId").post(checkAuth, userListController.addToList);
 

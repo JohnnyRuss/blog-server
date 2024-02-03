@@ -111,3 +111,16 @@ export const getWhoToFollow = Async(async (req, res, next) => {
 
   res.status(200).json(authors);
 });
+
+export const getFollowingUsers = Async(async (req, res, next) => {
+  const currUser = req.user;
+
+  const user = await User.findById(currUser._id).populate({
+    path: "following",
+    select: "username fullname email avatar _id",
+  });
+
+  if (!user) return next(new AppError(404, "User does not exists"));
+
+  res.status(200).json(user?.following);
+});

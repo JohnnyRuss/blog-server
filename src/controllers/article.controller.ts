@@ -104,11 +104,11 @@ export const getTopArticle = Async(async (req, res, next) => {
     .limit(1)
     .populate({
       path: "author",
-      select: "_id username avatar fullname",
+      select: "_id username avatar fullname email",
     })
     .populate({
       path: "categories",
-      select: "_id title color",
+      select: "_id title color query",
     });
 
   if (!article) return next(new AppError(404, "Article does not exists"));
@@ -173,11 +173,13 @@ export const getAllArticles = Async(async (req, res, next) => {
           {
             $unset: ["__v", "updatedAt"],
           },
+
           {
             $match: {
               ...filterObject,
             },
           },
+
           {
             $addFields: {
               common: {
@@ -187,11 +189,13 @@ export const getAllArticles = Async(async (req, res, next) => {
               },
             },
           },
+
           {
             $sort: {
               ...sortObject,
             },
           },
+
           {
             $skip: paginationObject.skip,
           },

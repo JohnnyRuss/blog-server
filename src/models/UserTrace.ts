@@ -23,7 +23,7 @@ const UserTraceSchema = new Schema<
     type: [
       {
         readAt: Date,
-        article: { type: Schema.Types.ObjectId, ref: "Category" },
+        article: { type: Schema.Types.ObjectId, ref: "Article" },
       },
     ],
     default: [],

@@ -20,22 +20,23 @@ const saveUser = Async(async function (req, _, next) {
 
   if (!token) return returnDefault();
 
-  const verifiedToken = await JWT.verifyToken(token, false);
+  try {
+    const verifiedToken = await JWT.verifyToken(token, false);
+    const user = await User.findById(verifiedToken._id);
 
-  if (!verifiedToken) return returnDefault();
+    if (!user) return returnDefault();
 
-  const user = await User.findById(verifiedToken._id);
+    const incomingUser: ReqUserT = {
+      role: user.role,
+      username: user.username,
+      email: user.email,
+      _id: user._id.toString(),
+    };
 
-  if (!user) return returnDefault();
-
-  const incomingUser: ReqUserT = {
-    role: user.role,
-    username: user.username,
-    email: user.email,
-    _id: user._id.toString(),
-  };
-
-  req.incomingUser = incomingUser;
+    req.incomingUser = incomingUser;
+  } catch (error) {
+    return returnDefault();
+  }
 
   next();
 });

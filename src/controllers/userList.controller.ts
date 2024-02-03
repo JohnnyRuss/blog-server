@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
-import { Async, AppError } from "../lib";
-import { UserList, User } from "../models";
+import { Async, AppError, API_FeatureUtils } from "../lib";
+import { UserList } from "../models";
 
 export const getUserLists = Async(async (req, res, next) => {
   const { limit } = req.query;
@@ -184,4 +184,177 @@ export const getRecentlySavedArticles = Async(async (req, res, next) => {
   ]);
 
   res.status(200).json(articles);
+});
+
+export const getListDetails = Async(async (req, res, next) => {
+  const { listId } = req.params;
+  const incomingUser = req.incomingUser;
+
+  const list = await UserList.findById(listId)
+    .populate({
+      path: "author",
+      select: "_id username fullname email avatar",
+    })
+    .select("-__v -articles");
+
+  if (!list) return next(new AppError(404, "List does not exists"));
+  else if (
+    list.author._id.toString() !== incomingUser?._id &&
+    list.privacy === "PRIVATE"
+  )
+    return next(new AppError(403, "You are not authorized for this operation"));
+
+  res.status(200).json(list);
+});
+
+export const getListArticles = Async(async (req, res, next) => {
+  const { listId } = req.params;
+  const incomingUser = req.incomingUser;
+
+  const list = await UserList.findById(listId);
+
+  if (!list) return next(new AppError(404, "List does not exists"));
+  else if (
+    list.author.toString() !== incomingUser?._id &&
+    list.privacy === "PRIVATE"
+  )
+    return next(new AppError(403, "You are not authorized for this operation"));
+
+  const queryUtils = new API_FeatureUtils(
+    req.query as { [key: string]: string }
+  );
+
+  const paginationObject = queryUtils.getPaginationInfo();
+
+  const [data] = await UserList.aggregate([
+    {
+      $facet: {
+        pagination: [
+          {
+            $match: {
+              _id: new mongoose.Types.ObjectId(listId),
+            },
+          },
+
+          {
+            $project: { articles: 1 },
+          },
+
+          {
+            $unwind: "$articles",
+          },
+
+          {
+            $group: {
+              _id: null,
+              sum: { $sum: 1 },
+            },
+          },
+        ],
+        articles: [
+          {
+            $match: {
+              _id: new mongoose.Types.ObjectId(listId),
+            },
+          },
+
+          {
+            $project: { articles: 1 },
+          },
+
+          {
+            $unwind: "$articles",
+          },
+
+          {
+            $replaceRoot: {
+              newRoot: "$articles",
+            },
+          },
+
+          {
+            $sort: {
+              savedAt: -1,
+            },
+          },
+
+          // pagination placement
+
+          {
+            $lookup: {
+              from: "articles",
+              as: "article",
+              localField: "article",
+              foreignField: "_id",
+              pipeline: [
+                {
+                  $lookup: {
+                    from: "users",
+                    localField: "author",
+                    foreignField: "_id",
+                    as: "author",
+                    pipeline: [
+                      {
+                        $project: {
+                          _id: 1,
+                          email: 1,
+                          avatar: 1,
+                          username: 1,
+                          fullname: 1,
+                        },
+                      },
+                    ],
+                  },
+                },
+
+                {
+                  $lookup: {
+                    from: "categories",
+                    localField: "categories",
+                    foreignField: "_id",
+                    as: "categories",
+                    pipeline: [
+                      {
+                        $project: {
+                          _id: 1,
+                          title: 1,
+                          color: 1,
+                          query: 1,
+                        },
+                      },
+                    ],
+                  },
+                },
+
+                {
+                  $unwind: "$author",
+                },
+              ],
+            },
+          },
+
+          {
+            $unwind: "$article",
+          },
+
+          {
+            $replaceRoot: {
+              newRoot: "$article",
+            },
+          },
+        ],
+      },
+    },
+  ]);
+
+  const { pagination, articles } = data;
+  const total = pagination[0]?.sum || 0;
+  const currentPage = paginationObject.currentPage;
+  const pagesCount = Math.ceil(total / paginationObject.limit);
+
+  res.status(200).json({
+    currentPage,
+    data: articles,
+    hasMore: currentPage < pagesCount,
+  });
 });
