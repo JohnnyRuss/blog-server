@@ -124,3 +124,48 @@ export const getFollowingUsers = Async(async (req, res, next) => {
 
   res.status(200).json(user?.following);
 });
+
+export const checkIsFollowingUser = Async(async (req, res, next) => {
+  const { userId } = req.params;
+  const currUser = req.user;
+
+  const user = await User.findById(currUser._id);
+
+  const isFollowing = user!.following.some(
+    (candidateUser) => candidateUser.toString() === userId
+  );
+
+  res.status(200).json({ isFollowing });
+});
+
+export const followUser = Async(async (req, res, next) => {
+  const { userId } = req.params;
+  const currUser = req.user;
+
+  const candidateUser = await User.findById(userId);
+
+  if (!candidateUser) return next(new AppError(404, "User does no exists"));
+
+  const authenticatedUser = await User.findById(currUser._id);
+
+  if (!authenticatedUser) return next(new AppError(404, "User does no exists"));
+
+  if (authenticatedUser.following.some((user) => user.toString() === userId))
+    authenticatedUser.following = authenticatedUser?.following.filter(
+      (user) => user.toString() !== userId
+    );
+  else authenticatedUser.following.push(new mongoose.Types.ObjectId(userId));
+
+  await authenticatedUser.save();
+
+  const responseBody = {
+    _id: candidateUser._id.toString(),
+    email: candidateUser.email,
+    username: candidateUser.username,
+    fullname: candidateUser.fullname,
+    avatar: candidateUser.avatar,
+    bio: candidateUser.bio,
+  };
+
+  res.status(201).json(responseBody);
+});

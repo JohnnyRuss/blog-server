@@ -1,6 +1,37 @@
 import mongoose from "mongoose";
 import { Async, AppError, API_FeatureUtils } from "../lib";
-import { UserList } from "../models";
+import { UserList, Article } from "../models";
+import { ListArticleT } from "../types/models/userList.types";
+
+export const createList = Async(async (req, res, next) => {
+  const currUser = req.user;
+  const { title, description, privacy } = req.body;
+
+  const list = await new UserList({
+    author: currUser._id,
+    title,
+    privacy,
+    description,
+  }).save();
+
+  res.status(201).json(list);
+});
+
+export const updateList = Async(async (req, res, next) => {
+  const body = req.body;
+  const { listId } = req.params;
+  const currUser = req.user;
+
+  const list = await UserList.findById(listId);
+
+  if (!list) return next(new AppError(404, "List does not exists"));
+  else if (list.author.toString() !== currUser._id)
+    return next(new AppError(403, "You are not authorized for this operation"));
+
+  await UserList.findByIdAndUpdate(listId, { $set: { ...body } });
+
+  res.status(200).json("list is updated");
+});
 
 export const getUserLists = Async(async (req, res, next) => {
   const { limit } = req.query;
@@ -22,16 +53,14 @@ export const getUserLists = Async(async (req, res, next) => {
       options: { limit: 3 },
     });
 
-  if (limit) query.limit(+limit);
-
   let lists = await query;
 
   lists =
-    lists[0]?.author._id.toString() === incomingUser._id
+    lists[0]?.author._id.toString() === incomingUser?._id
       ? lists
       : lists.filter((list) => list.privacy !== "PRIVATE");
 
-  res.status(200).json(lists);
+  res.status(200).json(lists.slice(0, limit ? +limit : lists.length));
 });
 
 export const getListsToAdd = Async(async (req, res, next) => {
@@ -48,34 +77,48 @@ export const addToList = Async(async (req, res, next) => {
 
   const list = await UserList.findById(listId);
 
+  const article = await Article.findById(articleId)
+    .populate({
+      path: "author",
+      select: "_id email username fullname avatar",
+    })
+    .populate({
+      path: "categories",
+      select: "_id title query color thumbnail",
+    })
+    .select("_id slug title body author categories createdAt picked likes");
+
   if (!list) return next(new AppError(404, "list does not exists"));
   else if (list.author.toString() !== currUser._id)
     return next(new AppError(403, "You are not authorized for this operation"));
+  else if (!article) return next(new AppError(404, "list does not exists"));
 
   if (list.articles.some((article) => article.article.toString() === articleId))
-    await UserList.findByIdAndUpdate(listId, {
-      $pull: { articles: { article: articleId } },
-    });
+    list.articles = list.articles.filter(
+      (article) => article.article.toString() !== articleId
+    ) as Array<ListArticleT>;
   else
-    await UserList.findByIdAndUpdate(listId, {
-      $push: { articles: { article: articleId } },
-    });
+    list.articles = [
+      ...list.articles,
+      {
+        article: new mongoose.Types.ObjectId(articleId),
+        savedAt: new Date().toString(),
+      },
+    ];
 
-  res.status(204).json("article added to list");
-});
+  await list.populate({
+    path: "articles.article",
+    select: "_id slug title body author categories createdAt picked",
+    populate: [
+      { path: "author", select: "_id username fullname avatar" },
+      { path: "categories", select: "_id title query color thumbnail" },
+    ],
+    // options: { limit: 3 },
+  });
 
-export const createList = Async(async (req, res, next) => {
-  const currUser = req.user;
-  const { title, description, privacy } = req.body;
+  await list.save();
 
-  const list = await new UserList({
-    author: currUser._id,
-    title,
-    privacy,
-    description,
-  }).save();
-
-  res.status(201).json(list);
+  res.status(201).json(list.articles);
 });
 
 export const getRecentlySavedArticles = Async(async (req, res, next) => {
@@ -357,4 +400,18 @@ export const getListArticles = Async(async (req, res, next) => {
     data: articles,
     hasMore: currentPage < pagesCount,
   });
+});
+
+export const getSavedArticlesIds = Async(async (req, res, next) => {
+  const currUser = req.user;
+
+  const userLists = await UserList.find({ author: currUser._id });
+
+  const savedArticlesIds = userLists
+    .flatMap((list) => list.articles)
+    .map((article) => article.article.toString());
+
+  const savedArticlesIdsSet = Array.from(new Set(savedArticlesIds));
+
+  res.status(200).json(savedArticlesIdsSet);
 });

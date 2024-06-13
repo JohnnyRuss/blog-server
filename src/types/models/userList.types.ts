@@ -4,7 +4,7 @@ type UserListT = Document & {
   author: MongooseTypes.ObjectId;
   title: string;
   description: string;
-  articles: [{ article: MongooseTypes.ObjectId; savedAt: string }];
+  articles: Array<ListArticleT>;
   privacy: string;
 };
 
@@ -12,4 +12,9 @@ type UserListMethodsT = {};
 
 type UserListModelT = Model<UserListT, {}, UserListMethodsT>;
 
-export type { UserListT, UserListMethodsT, UserListModelT };
+type ListArticleT = {
+  article: MongooseTypes.ObjectId;
+  savedAt: string;
+};
+
+export type { UserListT, UserListMethodsT, UserListModelT, ListArticleT };

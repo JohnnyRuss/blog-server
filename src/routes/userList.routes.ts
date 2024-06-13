@@ -8,6 +8,11 @@ Router.route("/")
   .get(checkAuth, userListController.getListsToAdd)
   .post(checkAuth, userListController.createList);
 
+Router.route("/saved/articles").get(
+  checkAuth,
+  userListController.getSavedArticlesIds
+);
+
 Router.route("/user/saved").get(
   checkAuth,
   userListController.getRecentlySavedArticles
@@ -25,6 +30,8 @@ Router.route("/:listId/details").get(
   userListController.getListDetails
 );
 
-Router.route("/:listId").post(checkAuth, userListController.addToList);
+Router.route("/:listId")
+  .post(checkAuth, userListController.addToList)
+  .put(checkAuth, userListController.updateList);
 
 export default Router;

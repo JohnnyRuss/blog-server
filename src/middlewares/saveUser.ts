@@ -1,6 +1,6 @@
 import { ReqUserT } from "../index";
 import { User } from "../models";
-import { Async, AppError, JWT } from "../lib";
+import { Async, JWT } from "../lib";
 
 const saveUser = Async(async function (req, _, next) {
   const authorizationHeader = req.headers.authorization;

@@ -78,7 +78,7 @@ export const getArticle = Async(async (req, res, next) => {
     })
     .populate({
       path: "categories",
-      select: "_id title color",
+      select: "_id title color query",
     });
 
   if (!article) return next(new AppError(404, "Article does not exists"));
@@ -126,15 +126,12 @@ export const getAllArticles = Async(async (req, res, next) => {
 
   const paginationObject = queryUtils.getPaginationInfo();
   const sortObject = queryUtils.getAggregationSortQueryObject();
-  const filterObject = {
-    ...queryUtils.getArticlesQueryObject(),
-    author: {
-      $ne:
-        incomingUser && userbased === "1"
-          ? new mongoose.Types.ObjectId(incomingUser._id)
-          : "",
-    },
-  };
+  const filterObject = { ...queryUtils.getArticlesQueryObject() };
+
+  if (incomingUser)
+    filterObject.author = {
+      $ne: new mongoose.Types.ObjectId(incomingUser._id),
+    };
 
   const userTrace: Array<mongoose.Types.ObjectId> = [];
 
@@ -146,10 +143,31 @@ export const getAllArticles = Async(async (req, res, next) => {
     ).forEach((c) => userTrace.push(c));
   }
 
+  const categoryLookup = {
+    $lookup: {
+      from: "categories",
+      localField: "categories",
+      foreignField: "_id",
+      as: "categories",
+      pipeline: [
+        {
+          $project: {
+            _id: 1,
+            title: 1,
+            color: 1,
+            query: 1,
+          },
+        },
+      ],
+    },
+  };
+
   const [data] = await Article.aggregate([
     {
       $facet: {
         pagination: [
+          { ...categoryLookup },
+
           {
             $match: {
               ...filterObject,
@@ -174,10 +192,10 @@ export const getAllArticles = Async(async (req, res, next) => {
             $unset: ["__v", "updatedAt"],
           },
 
+          { ...categoryLookup },
+
           {
-            $match: {
-              ...filterObject,
-            },
+            $match: { ...filterObject },
           },
 
           {
@@ -225,25 +243,6 @@ export const getAllArticles = Async(async (req, res, next) => {
           },
 
           {
-            $lookup: {
-              from: "categories",
-              localField: "categories",
-              foreignField: "_id",
-              as: "categories",
-              pipeline: [
-                {
-                  $project: {
-                    _id: 1,
-                    title: 1,
-                    color: 1,
-                    query: 1,
-                  },
-                },
-              ],
-            },
-          },
-
-          {
             $unwind: "$author",
           },
 
@@ -274,7 +273,7 @@ export const getRelatedArticles = Async(async (req, res, next) => {
 
   const trace: Array<mongoose.Types.ObjectId> = article?.categories ?? [];
 
-  const data = await Article.aggregate([
+  let data = await Article.aggregate([
     {
       $unset: ["__v", "updatedAt"],
     },
@@ -354,7 +353,45 @@ export const getRelatedArticles = Async(async (req, res, next) => {
     },
   ]);
 
+  if (data.length <= 0)
+    data = await Article.find()
+      .select("_id author body categories createdAt likes slug title views")
+      .populate([
+        {
+          path: "author",
+          select: "_id avatar email fullname username",
+        },
+        {
+          path: "categories",
+          select: "_id color query title",
+        },
+      ])
+      .sort("-views")
+      .limit(6);
+
   res.status(200).json(data);
+});
+
+export const likeArticle = Async(async (req, res, next) => {
+  const { articleId } = req.params;
+  const currUser = req.user;
+
+  const candidateArticle = await Article.findById(articleId);
+
+  if (!candidateArticle)
+    return next(new AppError(404, "Article does  not exists"));
+
+  if (candidateArticle.likes.includes(currUser._id)) {
+    candidateArticle.likes = candidateArticle.likes.filter(
+      (like) => like.toString() !== currUser._id
+    );
+  } else {
+    candidateArticle.likes.push(currUser._id);
+  }
+
+  await candidateArticle.save();
+
+  res.status(201).json("article is liked");
 });
 
 // UTILS

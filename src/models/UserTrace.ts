@@ -10,15 +10,10 @@ const UserTraceSchema = new Schema<
   UserTraceModelT,
   UserTraceMethodsT
 >({
-  user: {
-    type: Schema.Types.ObjectId,
-    ref: "User",
-  },
-  views: {
-    type: [Schema.Types.ObjectId],
-    ref: "Category",
-    default: [],
-  },
+  user: { type: Schema.Types.ObjectId, ref: "User" },
+  views: { type: [Schema.Types.ObjectId], ref: "Category", default: [] },
+  interests: { type: [Schema.Types.ObjectId], ref: "Category", default: [] },
+  savedLists: { type: [Schema.Types.ObjectId], ref: "UserList", default: [] },
   history: {
     type: [
       {
@@ -26,16 +21,6 @@ const UserTraceSchema = new Schema<
         article: { type: Schema.Types.ObjectId, ref: "Article" },
       },
     ],
-    default: [],
-  },
-  interests: {
-    type: [Schema.Types.ObjectId],
-    ref: "Category",
-    default: [],
-  },
-  savedLists: {
-    type: [Schema.Types.ObjectId],
-    ref: "UserList",
     default: [],
   },
 });

@@ -18,7 +18,7 @@ class API_FeatureUtils {
           const value = this.query[key] as string;
 
           convertedFilter[key] = arrayKeys.includes(key)
-            ? value.split(",")
+            ? value.split(",") || []
             : value;
         }
       });
@@ -40,7 +40,10 @@ class API_FeatureUtils {
   }
 
   getArticlesQueryObject() {
-    const queryObject = this.getQueryObject(["search", "picked"], []);
+    const queryObject = this.getQueryObject(
+      ["search", "picked", "category"],
+      ["category"]
+    );
 
     const query: { [key: string]: any } = {};
 
@@ -49,6 +52,9 @@ class API_FeatureUtils {
         { slug: { $regex: queryObject.search, $options: "i" } },
         { title: { $regex: queryObject.search, $options: "i" } },
       ];
+
+    if (queryObject.category)
+      query["categories.query"] = { $in: queryObject.category };
 
     if (queryObject.picked) query.picked = true;
 

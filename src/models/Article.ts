@@ -57,7 +57,25 @@ const ArticleSchema = new Schema<ArticleT, ArticleModelT, ArticleMethodsT>(
 ArticleSchema.pre("save", async function (next) {
   if (!this.isModified("title")) return next();
 
-  this.slug = slugify(this.title, { lower: true, locale: "en", trim: true });
+  const Model = this.constructor as typeof Article;
+
+  const title = this.title.replace(/[^a-zA-Z0-9\s-]/g, "");
+  const slug = slugify(title, { lower: true, locale: "en", trim: true });
+  let newSlug = slug;
+
+  let slugExists = await Model.findOne({ slug: newSlug });
+
+  if (slugExists) {
+    let uniqueSuffix = 1;
+
+    while (slugExists) {
+      newSlug = `${slug}-${uniqueSuffix}`;
+      slugExists = await Model.findOne({ slug: newSlug });
+      uniqueSuffix++;
+    }
+  }
+
+  this.slug = newSlug;
 
   next();
 });
