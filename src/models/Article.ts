@@ -4,6 +4,7 @@ import {
   ArticleMethodsT,
 } from "../types/models/article.types";
 import { Schema, model } from "mongoose";
+import { transliterate } from "transliteration";
 import slugify from "slugify";
 
 const ArticleSchema = new Schema<ArticleT, ArticleModelT, ArticleMethodsT>(
@@ -24,12 +25,14 @@ const ArticleSchema = new Schema<ArticleT, ArticleModelT, ArticleMethodsT>(
       required: true,
     },
 
-    categories: {
-      type: [Schema.Types.ObjectId],
-      ref: "Category",
-      required: true,
-      default: [],
-    },
+    categories: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: "Category",
+        required: true,
+        default: [],
+      },
+    ],
 
     body: {
       type: String,
@@ -50,6 +53,11 @@ const ArticleSchema = new Schema<ArticleT, ArticleModelT, ArticleMethodsT>(
     picked: {
       type: Boolean,
     },
+
+    commentsCount: {
+      type: Number,
+      default: 0,
+    },
   },
   { timestamps: true }
 );
@@ -59,7 +67,9 @@ ArticleSchema.pre("save", async function (next) {
 
   const Model = this.constructor as typeof Article;
 
-  const title = this.title.replace(/[^a-zA-Z0-9\s-]/g, "");
+  const transliteratedTitle = transliterate(this.title);
+
+  const title = transliteratedTitle.replace(/[^a-zA-Z0-9\s-]/g, "");
   const slug = slugify(title, { lower: true, locale: "en", trim: true });
   let newSlug = slug;
 

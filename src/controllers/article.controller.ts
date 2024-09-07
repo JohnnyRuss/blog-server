@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 import { AppError, Async, API_FeatureUtils } from "../lib";
-import { Article, Category, UserTrace } from "../models";
+import { Article, Category, UserTrace, UserList } from "../models";
 import { CategoryT as CategoryDocT } from "../types/models/category.types";
 
 type CategoryT = CategoryDocT & { isNew?: boolean; _id: string };
@@ -31,10 +31,10 @@ export const createArticle = Async(async (req, res, next) => {
 
 export const updateArticle = Async(async (req, res, next) => {
   const { title, categories, body } = req.body;
-  const { articleId } = req.params;
+  const { slug } = req.params;
   const currUser = req.user;
 
-  const article = await Article.findById(articleId);
+  const article = await Article.findOne({ slug });
 
   if (!article) return next(new AppError(404, "Article does not exists"));
 
@@ -47,23 +47,36 @@ export const updateArticle = Async(async (req, res, next) => {
   article.body = body;
   article.categories = categoryIds;
 
-  article.save({ validateBeforeSave: true });
+  await article.save({ validateBeforeSave: true });
 
   res.status(201).json("Article is updated");
 });
 
 export const deleteArticle = Async(async (req, res, next) => {
-  const { articleId } = req.params;
+  const { slug } = req.params;
+  const { id } = req.query;
   const currUser = req.user;
 
-  const article = await Article.findById(articleId);
+  const article = await Article.findOne({ slug });
 
   if (!article) return next(new AppError(404, "Article does not exists"));
 
   if (article.author.toString() !== currUser._id)
     return next(new AppError(403, "You are not authorized or this operation"));
 
-  await Article.findByIdAndDelete(articleId);
+  const articleOjectId = new mongoose.Types.ObjectId(id as string);
+
+  await UserList.updateMany(
+    { articles: articleOjectId },
+    { $pull: { articles: articleOjectId } }
+  );
+
+  await UserTrace.updateMany(
+    { "history.article": articleOjectId },
+    { $pull: { history: { article: articleOjectId } } }
+  );
+
+  await article.deleteOne();
 
   res.status(204).json("Article is deleted");
 });
@@ -368,6 +381,83 @@ export const getRelatedArticles = Async(async (req, res, next) => {
       ])
       .sort("-views")
       .limit(6);
+
+  res.status(200).json(data);
+});
+
+export const getUserArticles = Async(async (req, res, next) => {
+  const { username } = req.params;
+  const { limit } = req.query;
+
+  const matchQuery: { [key: string]: string } = { "author.username": username };
+
+  const agregationPipeline: any = [
+    {
+      $lookup: {
+        from: "users",
+        as: "author",
+        localField: "author",
+        foreignField: "_id",
+        pipeline: [
+          {
+            $project: {
+              _id: 1,
+              username: 1,
+              fullname: 1,
+              avatar: 1,
+              email: 1,
+            },
+          },
+        ],
+      },
+    },
+
+    { $unwind: "$author" },
+
+    { $match: matchQuery },
+
+    {
+      $lookup: {
+        from: "categories",
+        as: "categories",
+        localField: "categories",
+        foreignField: "_id",
+        pipeline: [
+          {
+            $project: {
+              _id: 1,
+              title: 1,
+              query: 1,
+              color: 1,
+              thumbnail: 1,
+            },
+          },
+        ],
+      },
+    },
+
+    {
+      $project: {
+        _id: 1,
+        slug: 1,
+        title: 1,
+        body: 1,
+        author: 1,
+        categories: 1,
+        createdAt: 1,
+        picked: 1,
+        likes: 1,
+        commentsCount: 1,
+      },
+    },
+
+    { $sort: { createdAt: -1 } },
+  ];
+
+  if (limit)
+    agregationPipeline.push({ $limit: Math.abs(parseInt(limit as string)) });
+
+  const data = await Article.aggregate(agregationPipeline);
 
   res.status(200).json(data);
 });

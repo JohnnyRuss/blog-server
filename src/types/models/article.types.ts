@@ -12,6 +12,7 @@ type ArticleT = Document & {
   updatedAt: string;
   createdAt: string;
   picked: boolean;
+  commentsCount: number;
 };
 
 type ArticleMethodsT = {};

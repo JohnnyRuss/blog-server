@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 import { Async, AppError, API_FeatureUtils } from "../lib";
-import { UserList, Article } from "../models";
+import { UserList, Article, UserTrace } from "../models";
 import { ListArticleT } from "../types/models/userList.types";
 
 export const createList = Async(async (req, res, next) => {
@@ -28,9 +28,37 @@ export const updateList = Async(async (req, res, next) => {
   else if (list.author.toString() !== currUser._id)
     return next(new AppError(403, "You are not authorized for this operation"));
 
-  await UserList.findByIdAndUpdate(listId, { $set: { ...body } });
+  const updatedList = await UserList.findByIdAndUpdate(
+    listId,
+    { $set: { ...body } },
+    { new: true }
+  );
 
-  res.status(200).json("list is updated");
+  res.status(200).json({
+    title: updatedList!.title,
+    privacy: updatedList!.privacy,
+    description: updatedList!.description,
+  });
+});
+
+export const deleteList = Async(async (req, res, next) => {
+  const { listId } = req.params;
+  const currUser = req.user;
+
+  const list = await UserList.findById(listId);
+
+  if (!list) return next(new AppError(404, "list does not exists"));
+  else if (list.author.toString() !== currUser._id)
+    return next(new AppError(403, "you are not authorized for this operation"));
+
+  await list.deleteOne();
+
+  await UserTrace.updateMany(
+    { savedLists: listId },
+    { $pull: { savedLists: listId } }
+  );
+
+  res.status(204).json("list is deleted");
 });
 
 export const getUserLists = Async(async (req, res, next) => {
@@ -261,7 +289,12 @@ export const getListArticles = Async(async (req, res, next) => {
     list.author.toString() !== incomingUser?._id &&
     list.privacy === "PRIVATE"
   )
-    return next(new AppError(403, "You are not authorized for this operation"));
+    return next(
+      new AppError(
+        403,
+        "You are not authorized for this operation. \n User has deleted the list or change its privacy."
+      )
+    );
 
   const queryUtils = new API_FeatureUtils(
     req.query as { [key: string]: string }

@@ -3,3 +3,4 @@ export { default as Article } from "./Article";
 export { default as Category } from "./Category";
 export { default as UserTrace } from "./UserTrace";
 export { default as UserList } from "./UserList";
+export { default as Comment } from "./Comment";

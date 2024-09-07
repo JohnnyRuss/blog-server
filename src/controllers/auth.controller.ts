@@ -213,12 +213,7 @@ export const updatePassword = Async(async (req, res, next) => {
     );
 
   const err = () =>
-    next(
-      new AppError(
-        403,
-        "Invalid request. Please retry the password update from sending email."
-      )
-    );
+    next(new AppError(403, "Invalid request. Please try again."));
 
   if (!password_reset_token) return err();
 
@@ -243,8 +238,6 @@ export const updatePassword = Async(async (req, res, next) => {
   user.password = password;
 
   await user.save();
-
-  user.password = "";
 
   res.status(201).json({ passwordIsUpdated: true });
 });

@@ -38,6 +38,10 @@ body {
   height: 200px;
 }
 
+.logo__fig img {
+  object-fit: contain;
+}
+
 .heading__box {
   display: flex;
   flex-direction: column;

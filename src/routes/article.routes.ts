@@ -17,6 +17,8 @@ Router.route("/reaction/:articleId").post(
   articleController.likeArticle
 );
 
+Router.route("/:username/all").get(articleController.getUserArticles);
+
 Router.route("/:slug")
   .put(checkAuth, articleController.updateArticle)
   .delete(checkAuth, articleController.deleteArticle)

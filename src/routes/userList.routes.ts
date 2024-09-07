@@ -32,6 +32,7 @@ Router.route("/:listId/details").get(
 
 Router.route("/:listId")
   .post(checkAuth, userListController.addToList)
-  .put(checkAuth, userListController.updateList);
+  .put(checkAuth, userListController.updateList)
+  .delete(checkAuth, userListController.deleteList);
 
 export default Router;

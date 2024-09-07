@@ -73,7 +73,7 @@ const UserSchema = new Schema<UserT, UserModelT, UserMethodsT>(
 );
 
 UserSchema.pre("save", async function (next) {
-  if (!this.isModified("fullname")) return next();
+  if (!this.isModified("fullname") || this.username !== "") return next();
 
   this.username = slugify(this.fullname, {
     lower: true,

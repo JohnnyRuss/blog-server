@@ -1,11 +1,11 @@
-import { Types as MongooseTypes, Model, Document } from "mongoose";
+import { Model, Document } from "mongoose";
 
-type CategoryT = {
+interface CategoryT extends Document {
   title: string;
   query: string;
   color: string;
   thumbnail: string;
-};
+}
 
 type CategoryMethodsT = {};
 

@@ -67,13 +67,18 @@ export const getUserHistory = Async(async (req, res, next) => {
 
   const paginationObject = queryUtils.getPaginationInfo();
 
+  const currentMonthStart = new Date();
+  currentMonthStart.setDate(1);
+  currentMonthStart.setHours(0, 0, 0, 0);
+
   const [data] = await UserTrace.aggregate([
     {
       $facet: {
         pagination: [
           {
             $match: {
-              user: new mongoose.Types.ObjectId(currUser._id),
+              user: new mongoose.Types.ObjectId("6596dccf0dbff407180306e0"),
+              // user: new mongoose.Types.ObjectId(currUser._id),
             },
           },
 
@@ -195,16 +200,66 @@ export const getUserHistory = Async(async (req, res, next) => {
           },
 
           {
+            $group: {
+              _id: {
+                $cond: {
+                  if: {
+                    $and: [
+                      {
+                        $eq: [
+                          { $year: "$readAt" },
+                          currentMonthStart.getFullYear(),
+                        ],
+                      },
+                      {
+                        $eq: [
+                          { $month: "$readAt" },
+                          currentMonthStart.getMonth() + 1,
+                        ],
+                      },
+                    ],
+                  },
+                  then: {
+                    year: { $year: "$readAt" },
+                    month: { $month: "$readAt" },
+                    day: { $dayOfMonth: "$readAt" },
+                  },
+                  else: {
+                    year: { $year: "$readAt" },
+                    month: { $month: "$readAt" },
+                  },
+                },
+              },
+              articles: {
+                $push: {
+                  readAt: "$readAt",
+                  _id: "$article._id",
+                  title: "$article.title",
+                  author: "$article.author",
+                  categories: "$article.categories",
+                  body: "$article.body",
+                  likes: "$article.likes",
+                  createdAt: "$article.createdAt",
+                  slug: "$article.slug",
+                  commentsCount: "$article.commentsCount",
+                },
+              },
+            },
+          },
+
+          {
             $project: {
-              readAt: "$readAt",
-              _id: "$article._id",
-              title: "$article.title",
-              author: "$article.author",
-              categories: "$article.categories",
-              body: "$article.body",
-              likes: "$article.likes",
-              createdAt: "$article.createdAt",
-              slug: "$article.slug",
+              _id: 0,
+              group: "$_id",
+              articles: 1,
+            },
+          },
+
+          {
+            $sort: {
+              "group.year": -1,
+              "group.month": -1,
+              "group.day": -1,
             },
           },
         ],
