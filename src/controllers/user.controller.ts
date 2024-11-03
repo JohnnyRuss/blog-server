@@ -155,7 +155,10 @@ export const deleteUser = Async(async (req, res, next) => {
     const getIds = (item: { _id: mongoose.Types.ObjectId }): string =>
       item._id.toString();
 
-    const userListsIds = userLists.map(getIds);
+    const userListsIds = userLists.map((list) =>
+      (list._id as mongoose.Types.ObjectId).toString()
+    );
+
     const userArticlesIds = userArticles.map(getIds);
 
     // STEP 4 - Start Atomic Deletion
