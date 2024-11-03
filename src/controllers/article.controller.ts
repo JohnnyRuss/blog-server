@@ -326,7 +326,7 @@ export const getRelatedArticles = Async(async (req, res, next) => {
     {
       $match: {
         slug: { $ne: slug },
-        author: { $ne: incomingUser._id },
+        author: { $ne: incomingUser?._id },
         categories: { $in: trace },
       },
     },
@@ -404,7 +404,7 @@ export const getRelatedArticles = Async(async (req, res, next) => {
 
     const dataToFill = await Article.find({
       _id: { $nin: dataIds },
-      author: { $ne: incomingUser._id },
+      author: { $ne: incomingUser?._id },
     })
       .select("_id author body categories createdAt likes slug title views")
       .populate([

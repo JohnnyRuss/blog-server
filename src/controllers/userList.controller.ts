@@ -442,7 +442,8 @@ export const getSavedArticlesIds = Async(async (req, res, next) => {
 
   const savedArticlesIds = userLists
     .flatMap((list) => list.articles)
-    .map((article) => article.article.toString());
+    .map((article) => article.article?.toString() || "")
+    .filter((articleId) => articleId !== "");
 
   const savedArticlesIdsSet = Array.from(new Set(savedArticlesIds));
 
