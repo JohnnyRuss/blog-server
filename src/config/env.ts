@@ -4,7 +4,7 @@ dotenv.config();
 
 // ENV
 const NODE_MODE = process.env.NODE_MODE;
-const PORT = process.env.PORT || 4000;
+const PORT = parseInt(process.env.PORT || "4000");
 
 // DB
 const DB_APP_CONNECTION = process.env.DB_APP_CONNECTION || "";

@@ -546,7 +546,9 @@ async function getCategoryIds(
           title: c.title,
         }).save();
 
-        categoryIds.push(newCategory._id.toString());
+        categoryIds.push(
+          (newCategory._id as mongoose.Types.ObjectId).toString()
+        );
       })
     );
 
