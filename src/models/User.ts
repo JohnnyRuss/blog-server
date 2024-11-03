@@ -2,6 +2,7 @@ import { model, Schema } from "mongoose";
 import slugify from "slugify";
 import bcrypt from "bcrypt";
 import crypto from "crypto";
+import { transliterate } from "transliteration";
 import { UserT, UserMethodsT, UserModelT } from "../types/models/user.types";
 import { USER_DEFAULT_AVATAR } from "../config/config";
 
@@ -73,14 +74,36 @@ const UserSchema = new Schema<UserT, UserModelT, UserMethodsT>(
 );
 
 UserSchema.pre("save", async function (next) {
-  if (!this.isModified("fullname") || this.username !== "") return next();
+  if (!this.isModified("fullname") || this.username) return next();
 
-  this.username = slugify(this.fullname, {
+  const Model = this.constructor as typeof User;
+
+  const transliteratedFullname = transliterate(this.fullname);
+
+  const fullname = transliteratedFullname.replace(/[^a-zA-Z0-9\s-]/g, "");
+
+  const slug = slugify(fullname, {
     lower: true,
     locale: "en",
     trim: true,
     replacement: ".",
   });
+
+  let newSlug = slug;
+
+  let slugExists = await Model.findOne({ username: newSlug });
+
+  if (slugExists) {
+    let uniqueSuffix = 1;
+
+    while (slugExists) {
+      newSlug = `${slug}-${uniqueSuffix}`;
+      slugExists = await Model.findOne({ slug: newSlug });
+      uniqueSuffix++;
+    }
+  }
+
+  this.username = newSlug;
 
   next();
 });

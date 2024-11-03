@@ -1,11 +1,13 @@
+import crypto from "crypto";
+import { promisify } from "util";
+import { Response } from "express";
+import jwt from "jsonwebtoken";
+
 import {
   NODE_MODE,
   JWT_ACCESS_SECRET,
   JWT_REFRESH_SECRET,
 } from "../config/env";
-import jwt from "jsonwebtoken";
-import { Response } from "express";
-import { promisify } from "util";
 import { ReqUserT } from "../index";
 
 class JWT {
@@ -37,6 +39,8 @@ class JWT {
 
     const refreshToken = jwt.sign(payload, this.refreshSecret);
 
+    const sessionToken = crypto.randomBytes(32).toString("hex");
+
     const cookieOptions: {
       httpOnly: boolean;
       secure: boolean;
@@ -48,6 +52,8 @@ class JWT {
     };
 
     if (NODE_MODE === "PROD") cookieOptions.secure = true;
+
+    res.cookie("session", sessionToken, cookieOptions);
 
     res.cookie("authorization", refreshToken, cookieOptions);
 

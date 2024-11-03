@@ -23,6 +23,10 @@ const UserTraceSchema = new Schema<
     ],
     default: [],
   },
+  isConfigured: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 const UserTrace = model<UserTraceT, UserTraceModelT>(

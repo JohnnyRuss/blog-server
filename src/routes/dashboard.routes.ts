@@ -8,7 +8,7 @@ Router.route("/categories/:categoryId/thumbnail").post(
   checkAuth,
   checkRole(["ADMIN"]),
   dashboardController.fileUpload,
-  dashboardController.uploadCate4goryThumbnail
+  dashboardController.uploadCategoryThumbnail
 );
 
 Router.route("/articles/:articleId/pick").post(

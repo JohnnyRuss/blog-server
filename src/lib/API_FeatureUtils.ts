@@ -25,7 +25,8 @@ class API_FeatureUtils {
 
     convertedFilter = JSON.parse(
       JSON.stringify(convertedFilter).replace(
-        /gt|gte|lt|lte/g,
+        // /gt|gte|lt|lte/g,
+        /\b(gt|gte|lt|lte)\b/g,
         (match) => `$${match}`
       )
     );

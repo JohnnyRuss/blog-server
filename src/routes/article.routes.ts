@@ -10,7 +10,10 @@ Router.route("/")
 
 Router.route("/top").get(saveUser, articleController.getTopArticle);
 
-Router.route("/related/:slug").get(articleController.getRelatedArticles);
+Router.route("/related/:slug").get(
+  saveUser,
+  articleController.getRelatedArticles
+);
 
 Router.route("/reaction/:articleId").post(
   checkAuth,

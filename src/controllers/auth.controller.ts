@@ -64,7 +64,9 @@ export const signUp = Async(async (req, res, next) => {
   if (user)
     return next(new AppError(400, "user with this email already exists"));
 
-  const newUser = await new User({ fullname, email, password }).save();
+  const newUser = await new User({ fullname, email, password }).save({
+    validateBeforeSave: true,
+  });
 
   await UserTrace.create({
     user: newUser._id,
@@ -137,6 +139,7 @@ export const signIn = Async(async (req, res, next) => {
 
 export const logout = Async(async (req, res, next) => {
   res.clearCookie("Authorization");
+  res.clearCookie("Session");
   res.status(204).json("user is logged out");
 });
 

@@ -13,10 +13,32 @@ export const getWhoToFollow = Async(async (req, res, next) => {
     user: currUser._id,
   })) as UserTraceT;
 
+  const userViews = trace.views || [];
+  const userInterests = trace.interests || [];
+
+  const userTrace = Array.from(new Set(userInterests.concat(userViews)));
   const userFollowing = user.following;
-  const userTrace = Array.from(
-    new Set((trace?.views || []).concat(trace?.interests || []))
-  );
+
+  const authorLookupStage = {
+    localField: "_id",
+    as: "author",
+    from: "users",
+    foreignField: "_id",
+    pipeline: [
+      {
+        $project: {
+          _id: 1,
+          fullname: 1,
+          username: 1,
+          email: 1,
+          avatar: 1,
+          bio: 1,
+        },
+      },
+    ],
+  };
+
+  const limit = parseInt(req.query.limit as string) || Number.MAX_SAFE_INTEGER;
 
   const authors = await Article.aggregate([
     {
@@ -28,6 +50,7 @@ export const getWhoToFollow = Async(async (req, res, next) => {
         },
       },
     },
+
     {
       $group: {
         _id: "$author",
@@ -35,6 +58,7 @@ export const getWhoToFollow = Async(async (req, res, next) => {
         categories: { $push: "$categories" },
       },
     },
+
     {
       $project: {
         _id: 0,
@@ -48,55 +72,25 @@ export const getWhoToFollow = Async(async (req, res, next) => {
         },
       },
     },
-    {
-      $unwind: "$categories",
-    },
-    {
-      $group: {
-        _id: "$author",
-        categories: { $addToSet: "$categories" },
-      },
-    },
+
+    { $unwind: "$categories" },
+
+    { $group: { _id: "$author", categories: { $addToSet: "$categories" } } },
+
     {
       $addFields: {
-        common: {
-          $size: {
-            $setIntersection: ["$categories", userTrace],
-          },
-        },
+        common: { $size: { $setIntersection: ["$categories", userTrace] } },
       },
     },
-    {
-      $sort: {
-        common: -1,
-      },
-    },
-    {
-      $limit: 6,
-    },
-    {
-      $lookup: {
-        localField: "_id",
-        as: "author",
-        from: "users",
-        foreignField: "_id",
-        pipeline: [
-          {
-            $project: {
-              _id: 1,
-              fullname: 1,
-              username: 1,
-              email: 1,
-              avatar: 1,
-              bio: 1,
-            },
-          },
-        ],
-      },
-    },
-    {
-      $unwind: "$author",
-    },
+
+    { $sort: { common: -1 } },
+
+    { $limit: limit },
+
+    { $lookup: authorLookupStage },
+
+    { $unwind: "$author" },
+
     {
       $project: {
         _id: "$author._id",

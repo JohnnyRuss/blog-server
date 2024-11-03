@@ -1,7 +1,7 @@
 import App from "./app";
 import mongoose from "mongoose";
 import { createServer } from "http";
-import { PORT, DB_APP_CONNECTION, APP_ORIGINS } from "./config/env";
+import { PORT, DB_APP_CONNECTION } from "./config/env";
 
 const SERVER = createServer(App);
 

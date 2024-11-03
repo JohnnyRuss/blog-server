@@ -8,6 +8,8 @@ type ArticleT = Document & {
   body: string;
   categories: Array<MongooseTypes.ObjectId>;
   views: number;
+  viewBuckets: Map<string, number>;
+  lastViewedSessions: Map<string, Date>;
   likes: Array<MongooseTypes.ObjectId>;
   updatedAt: string;
   createdAt: string;

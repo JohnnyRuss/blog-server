@@ -44,6 +44,18 @@ const ArticleSchema = new Schema<ArticleT, ArticleModelT, ArticleMethodsT>(
       default: 0,
     },
 
+    lastViewedSessions: {
+      type: Map,
+      of: Date,
+      default: {},
+    },
+
+    viewBuckets: {
+      type: Map,
+      of: Number,
+      default: {},
+    },
+
     likes: {
       type: [Schema.Types.ObjectId],
       ref: "User",

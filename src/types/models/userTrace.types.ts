@@ -6,6 +6,7 @@ type UserTraceT = Document & {
   history: Array<{ readAt: Date; article: MongooseTypes.ObjectId }>;
   interests: Array<MongooseTypes.ObjectId>;
   savedLists: Array<MongooseTypes.ObjectId>;
+  isConfigured: boolean;
 };
 
 type UserTraceMethodsT = {};

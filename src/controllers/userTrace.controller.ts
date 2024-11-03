@@ -1,6 +1,10 @@
 import mongoose from "mongoose";
 import { Async, AppError, API_FeatureUtils } from "../lib";
-import { UserTrace, Article, UserList } from "../models";
+import { UserTrace, Article, UserList, Category } from "../models";
+import {
+  trackViews,
+  trackUserHistory,
+} from "../utils/controllers/userTrace.utils";
 
 export const getUserTrace = Async(async (req, res, next) => {
   res.status(200).json("");
@@ -9,14 +13,13 @@ export const getUserTrace = Async(async (req, res, next) => {
 export const updateUserTrace = Async(async (req, res, next) => {
   const { target } = req.query;
   const currUser = req.incomingUser;
+  const { session } = req.cookies;
 
-  const article = await Article.findOneAndUpdate(
-    { slug: target },
-    { $inc: { views: 1 } },
-    { new: true }
-  );
+  const article = await Article.findOne({ slug: target });
 
   if (!article) return next(new AppError(404, "Article does not exists"));
+
+  await trackViews(article, session);
 
   if (currUser) {
     const trace = await UserTrace.findOne({ user: currUser._id });
@@ -30,27 +33,8 @@ export const updateUserTrace = Async(async (req, res, next) => {
     };
 
     // update history if is allowed
-    if (article.author._id.toString() !== currUser._id.toString()) {
-      const articleChronicle = trace.history.filter(
-        (history) => history.article.toString() === article._id.toString()
-      );
-
-      const lastInChronicle = articleChronicle[articleChronicle.length - 1];
-
-      const oneDayInMilliseconds = 24 * 60 * 60 * 1000;
-
-      const isMoreThenOneDay = () =>
-        lastInChronicle &&
-        Math.abs(Date.now() - new Date(lastInChronicle.readAt).getTime()) >
-          oneDayInMilliseconds;
-
-      const isAllowedToPush = !lastInChronicle || isMoreThenOneDay();
-
-      if (isAllowedToPush)
-        traceQuery["$push"] = {
-          history: { article: article._id, readAt: new Date() },
-        };
-    }
+    if (article.author._id.toString() !== currUser._id.toString())
+      trackUserHistory(trace, article._id.toString(), traceQuery);
 
     await UserTrace.findOneAndUpdate({ user: currUser._id }, traceQuery);
   }
@@ -67,201 +51,118 @@ export const getUserHistory = Async(async (req, res, next) => {
 
   const paginationObject = queryUtils.getPaginationInfo();
 
+  const paginationStage = [
+    { $match: { user: new mongoose.Types.ObjectId(currUser._id) } },
+
+    { $project: { history: 1 } },
+
+    { $unwind: "$history" },
+
+    { $group: { _id: null, sum: { $sum: 1 } } },
+
+    { $project: { _id: 0 } },
+  ];
+
+  const lookupAuthorStage = {
+    from: "users",
+    localField: "author",
+    foreignField: "_id",
+    as: "author",
+    pipeline: [
+      { $project: { _id: 1, email: 1, avatar: 1, username: 1, fullname: 1 } },
+    ],
+  };
+
+  const lookupCategoriesStage = {
+    from: "categories",
+    localField: "categories",
+    foreignField: "_id",
+    as: "categories",
+    pipeline: [{ $project: { _id: 1, title: 1, color: 1, query: 1 } }],
+  };
+
+  const lookupArticlesStage = {
+    from: "articles",
+    as: "article",
+    localField: "article",
+    foreignField: "_id",
+    pipeline: [
+      { $lookup: lookupAuthorStage },
+      { $lookup: lookupCategoriesStage },
+      { $unwind: "$author" },
+    ],
+  };
+
   const currentMonthStart = new Date();
   currentMonthStart.setDate(1);
   currentMonthStart.setHours(0, 0, 0, 0);
 
+  const groupByDateStage = {
+    $cond: {
+      if: {
+        $and: [
+          { $eq: [{ $year: "$readAt" }, currentMonthStart.getFullYear()] },
+          { $eq: [{ $month: "$readAt" }, currentMonthStart.getMonth() + 1] },
+        ],
+      },
+      then: {
+        year: { $year: "$readAt" },
+        month: { $month: "$readAt" },
+        day: { $dayOfMonth: "$readAt" },
+      },
+      else: {
+        year: { $year: "$readAt" },
+        month: { $month: "$readAt" },
+      },
+    },
+  };
+
+  const selectArticleFieldsStage = {
+    readAt: "$readAt",
+    _id: "$article._id",
+    title: "$article.title",
+    author: "$article.author",
+    categories: "$article.categories",
+    body: "$article.body",
+    likes: "$article.likes",
+    createdAt: "$article.createdAt",
+    slug: "$article.slug",
+    commentsCount: "$article.commentsCount",
+  };
+
   const [data] = await UserTrace.aggregate([
     {
       $facet: {
-        pagination: [
-          {
-            $match: {
-              user: new mongoose.Types.ObjectId("6596dccf0dbff407180306e0"),
-              // user: new mongoose.Types.ObjectId(currUser._id),
-            },
-          },
-
-          {
-            $project: {
-              history: 1,
-            },
-          },
-
-          {
-            $unwind: "$history",
-          },
-
-          {
-            $group: {
-              _id: null,
-              sum: { $sum: 1 },
-            },
-          },
-
-          {
-            $project: {
-              _id: 0,
-            },
-          },
-        ],
+        pagination: paginationStage,
         history: [
-          {
-            $match: {
-              user: new mongoose.Types.ObjectId(currUser._id),
-            },
-          },
+          { $match: { user: new mongoose.Types.ObjectId(currUser._id) } },
 
-          {
-            $project: {
-              history: 1,
-            },
-          },
+          { $project: { history: 1 } },
 
-          {
-            $unwind: "$history",
-          },
+          { $unwind: "$history" },
 
-          {
-            $replaceRoot: {
-              newRoot: "$history",
-            },
-          },
+          { $replaceRoot: { newRoot: "$history" } },
 
-          {
-            $sort: {
-              readAt: -1,
-            },
-          },
+          { $sort: { readAt: -1 } },
 
-          {
-            $skip: paginationObject.skip,
-          },
+          { $skip: paginationObject.skip },
 
-          {
-            $limit: paginationObject.limit,
-          },
+          { $limit: paginationObject.limit },
 
-          {
-            $lookup: {
-              from: "articles",
-              as: "article",
-              localField: "article",
-              foreignField: "_id",
-              pipeline: [
-                {
-                  $lookup: {
-                    from: "users",
-                    localField: "author",
-                    foreignField: "_id",
-                    as: "author",
-                    pipeline: [
-                      {
-                        $project: {
-                          _id: 1,
-                          email: 1,
-                          avatar: 1,
-                          username: 1,
-                          fullname: 1,
-                        },
-                      },
-                    ],
-                  },
-                },
+          { $lookup: lookupArticlesStage },
 
-                {
-                  $lookup: {
-                    from: "categories",
-                    localField: "categories",
-                    foreignField: "_id",
-                    as: "categories",
-                    pipeline: [
-                      {
-                        $project: {
-                          _id: 1,
-                          title: 1,
-                          color: 1,
-                          query: 1,
-                        },
-                      },
-                    ],
-                  },
-                },
-
-                {
-                  $unwind: "$author",
-                },
-              ],
-            },
-          },
-
-          {
-            $unwind: "$article",
-          },
+          { $unwind: "$article" },
 
           {
             $group: {
-              _id: {
-                $cond: {
-                  if: {
-                    $and: [
-                      {
-                        $eq: [
-                          { $year: "$readAt" },
-                          currentMonthStart.getFullYear(),
-                        ],
-                      },
-                      {
-                        $eq: [
-                          { $month: "$readAt" },
-                          currentMonthStart.getMonth() + 1,
-                        ],
-                      },
-                    ],
-                  },
-                  then: {
-                    year: { $year: "$readAt" },
-                    month: { $month: "$readAt" },
-                    day: { $dayOfMonth: "$readAt" },
-                  },
-                  else: {
-                    year: { $year: "$readAt" },
-                    month: { $month: "$readAt" },
-                  },
-                },
-              },
-              articles: {
-                $push: {
-                  readAt: "$readAt",
-                  _id: "$article._id",
-                  title: "$article.title",
-                  author: "$article.author",
-                  categories: "$article.categories",
-                  body: "$article.body",
-                  likes: "$article.likes",
-                  createdAt: "$article.createdAt",
-                  slug: "$article.slug",
-                  commentsCount: "$article.commentsCount",
-                },
-              },
+              _id: groupByDateStage,
+              articles: { $push: selectArticleFieldsStage },
             },
           },
 
-          {
-            $project: {
-              _id: 0,
-              group: "$_id",
-              articles: 1,
-            },
-          },
+          { $project: { _id: 0, group: "$_id", articles: 1 } },
 
-          {
-            $sort: {
-              "group.year": -1,
-              "group.month": -1,
-              "group.day": -1,
-            },
-          },
+          { $sort: { "group.year": -1, "group.month": -1, "group.day": -1 } },
         ],
       },
     },
@@ -420,4 +321,79 @@ export const getSavedListsIds = Async(async (req, res, next) => {
   const userSavedListsIds = userTrace?.savedLists || [];
 
   res.status(200).json(userSavedListsIds);
+});
+
+export const addUserInterest = Async(async (req, res, next) => {
+  const currUser = req.user;
+  const { categoryId } = req.params;
+
+  const category = await Category.findById(categoryId);
+
+  if (!category) return next(new AppError(400, "Category not found"));
+
+  const userTrace = await UserTrace.findOneAndUpdate(
+    { user: currUser._id },
+    { $addToSet: { interests: categoryId } }
+  );
+
+  if (!userTrace) return next(new AppError(404, "Can't find user"));
+
+  res.status(201).json(category);
+});
+
+export const removeUserInterest = Async(async (req, res, next) => {
+  const currUser = req.user;
+  const { categoryId } = req.params;
+
+  const category = await Category.findById(categoryId);
+
+  if (!category) return next(new AppError(400, "Category not found"));
+
+  const userTrace = await UserTrace.findOneAndUpdate(
+    { user: currUser._id },
+    { $pull: { interests: categoryId } }
+  );
+
+  if (!userTrace) return next(new AppError(404, "Can't find user"));
+
+  res.status(204).json("category is removed");
+});
+
+export const getUserInterests = Async(async (req, res, next) => {
+  const currUser = req.user;
+
+  const userTrace = await UserTrace.findOne({ user: currUser._id })
+    .select("interests")
+    .populate({ path: "interests" });
+
+  if (!userTrace) return next(new AppError(404, "Can't find user"));
+
+  res.status(200).json(userTrace.interests);
+});
+
+export const configureUserInterests = Async(async (req, res, next) => {
+  const currUser = req.user;
+  const { categories } = req.body;
+
+  const userTrace = await UserTrace.findOneAndUpdate(
+    { user: currUser._id },
+    { $addToSet: { interests: categories }, isConfigured: true }
+  );
+
+  if (!userTrace) return next(new AppError(404, "Can't find user"));
+
+  res.status(201).json("Interests are added");
+});
+
+export const checkIsConfigured = Async(async (req, res, next) => {
+  const currUser = req.user;
+
+  const userTrace = await UserTrace.findOne({ user: currUser._id });
+
+  if (!userTrace) return next(new AppError(404, "Can't find user"));
+
+  const isConfigured = userTrace.isConfigured;
+  const hasAddedInterests = userTrace.interests.length > 0;
+
+  res.status(200).json({ isConfigured, hasAddedInterests });
 });

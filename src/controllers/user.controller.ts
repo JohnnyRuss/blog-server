@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
-import { Async, AppError, Cloudinary, Email } from "../lib";
-import { User } from "../models";
+import { Async, AppError, Cloudinary, Email, JWT } from "../lib";
+import { User, UserList, Article, UserTrace, Comment } from "../models";
 
 import multer from "multer";
 import { USER_DEFAULT_AVATAR } from "../config/config";
@@ -42,12 +42,22 @@ export const updateUser = Async(async (req, res, next) => {
 
   await user.save();
 
-  req.user = {
-    ...currUser,
-    email: user.email,
-  };
+  const response: { [key: string]: string } = { key, value };
 
-  res.status(201).json({ key, value });
+  if (key == "username") {
+    const reqUser = {
+      ...currUser,
+      _id: user._id,
+      username: user.username,
+      email: user.email,
+    };
+
+    const { accessToken } = JWT.assignToken({ signature: reqUser, res });
+
+    response.accessToken = accessToken;
+  }
+
+  res.status(201).json(response);
 });
 
 export const updateProfileImage = Async(async (req, res, next) => {
@@ -64,30 +74,7 @@ export const updateProfileImage = Async(async (req, res, next) => {
 
   if (!file) return next(new AppError(400, "Please provide us your new image"));
 
-  const base64 = Buffer.from(file.buffer).toString("base64");
-  let dataURI = `data:${file.mimetype};base64,${base64}`;
-
-  const { secure_url } = await Cloudinary.uploader.upload(dataURI, {
-    resource_type: "image",
-    folder: "users",
-    format: "webp",
-  });
-
-  if (USER_DEFAULT_AVATAR !== user?.avatar) {
-    const generatePublicIds = (url: string): string => {
-      const fragments = url.split("/");
-      return fragments
-        .slice(fragments.length - 2)
-        .join("/")
-        .split(".")[0];
-    };
-
-    const imagePublicId = generatePublicIds(user.avatar);
-
-    await Cloudinary.api.delete_resources([imagePublicId], {
-      resource_type: "image",
-    });
-  }
+  const secure_url = await Cloudinary.updateProfileImage(file, user.avatar);
 
   user.avatar = secure_url;
   await user.save({ validateBeforeSave: false });
@@ -100,22 +87,15 @@ export const deleteProfileImage = Async(async (req, res, next) => {
   const { username } = req.params;
   const { url } = req.body;
 
+  if (!url) return next(new AppError(400, "Please provide us image to delete"));
+
   const user = await User.findOne({ username });
 
-  if (!url) return next(new AppError(400, "Please provide us image to delete"));
-  else if (!user) return next(new AppError(404, "User does not exists"));
+  if (!user) return next(new AppError(404, "User does not exists"));
   else if (currUser._id !== user._id.toString())
     return next(new AppError(403, "You are not authorized for this operation"));
 
-  const fragments = url.split("/");
-  const imagePublicId = fragments
-    .slice(fragments.length - 2)
-    .join("/")
-    .split(".")[0];
-
-  await Cloudinary.api.delete_resources([imagePublicId], {
-    resource_type: "image",
-  });
+  await Cloudinary.deleteImage(url);
 
   user.avatar = USER_DEFAULT_AVATAR;
   await user.save({ validateBeforeSave: false });
@@ -140,40 +120,86 @@ export const deleteUser = Async(async (req, res, next) => {
   const { password } = req.body;
   const currUser = req.user;
 
+  // STEP 1 - Validate User and Password
+
   if (currUser._id !== userId || !password)
     return next(new AppError(403, "You are not allowed for this operation"));
+
+  const user = await User.findById(userId).select("+password");
+
+  if (!user) return next(new AppError(404, "Can't find the user"));
+
+  const isValidPassword = await user.checkPassword(
+    password as string,
+    user.password
+  );
+
+  if (!isValidPassword)
+    return next(new AppError(403, "You are not allowed for this operation"));
+
+  // STEP 2 - Create Session for User atomic deletion
 
   const session = await mongoose.startSession();
   session.startTransaction();
 
   try {
-    const user = await User.findById(userId)
-      .select("+password")
-      .session(session);
+    // STEP 3 - Read User Data which must be deleted and are in relation to other documents
+    const userLists = await UserList.find({
+      author: currUser._id,
+    }).session(session);
 
-    if (!user)
-      return next(new AppError(403, "You are not allowed for this operation"));
+    const userArticles = await Article.find({
+      author: currUser._id,
+    }).session(session);
 
-    const isValidPassword = await user.checkPassword(
-      password as string,
-      user.password
-    );
+    const getIds = (item: { _id: mongoose.Types.ObjectId }): string =>
+      item._id.toString();
 
-    if (!isValidPassword)
-      return next(new AppError(403, "You are not allowed for this operation"));
+    const userListsIds = userLists.map(getIds);
+    const userArticlesIds = userArticles.map(getIds);
 
-    await User.findByIdAndDelete(userId).session(session);
+    // STEP 4 - Start Atomic Deletion
+
+    await UserList.deleteMany({ author: currUser._id }).session(session);
+    await Article.deleteMany({ author: currUser._id }).session(session);
+
+    await UserTrace.findOneAndDelete({ user: currUser._id }).session(session);
+
+    await UserList.updateMany({
+      $pull: { articles: { article: userArticlesIds } },
+    }).session(session);
+
+    await UserTrace.updateMany({
+      $pull: {
+        savedLists: { $in: userListsIds },
+        history: { article: userArticlesIds },
+      },
+    }).session(session);
+
+    await Comment.deleteMany({
+      $or: [{ articleId: { $in: userArticlesIds } }, { author: currUser._id }],
+    }).session(session);
+
+    await User.updateMany({
+      $pull: { following: currUser._id },
+    }).session(session);
+
+    await Cloudinary.deleteImage(user.avatar);
+
+    await User.findByIdAndDelete(currUser._id).session(session);
 
     res.clearCookie("Authorization");
+    res.clearCookie("Session");
 
     await Email.sendDeleteAccount({ to: user.email, username: user.username });
 
     await session.commitTransaction();
-    await session.endSession();
 
     res.status(204).json("user is deleted");
   } catch (error) {
     await session.abortTransaction();
     return next(new AppError(400, "Failed to delete user"));
+  } finally {
+    await session.endSession();
   }
 });

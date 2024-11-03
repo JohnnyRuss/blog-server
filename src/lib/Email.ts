@@ -50,14 +50,14 @@ export class Email {
   async sendWelcome(args: SendWelcomeArgsT) {
     try {
       await this.transporter().sendMail({
-        from: "<APP>",
+        from: "Blog",
         to: args.to,
-        subject: "Welcome to <APP>",
+        subject: "Welcome to Blog",
         html: pug.renderFile(this.generateDirPath("welcome"), {
           username: this.generateUppercaseUsername(args.username),
           subHead: `Dear ${this.generateUppercaseUsername(
             args.username
-          )} Welcome to <APP>! We're thrilled to have you on board. Thank you for choosing us.`,
+          )} Welcome to Blog! We're thrilled to have you on board. Thank you for choosing us.`,
         }),
       });
     } catch (error) {
@@ -68,9 +68,9 @@ export class Email {
   async sendDeleteAccount(args: SendWelcomeArgsT) {
     try {
       await this.transporter().sendMail({
-        from: "<APP>",
+        from: "Blog",
         to: args.to,
-        subject: "<APP> Account Deletion Confirmation",
+        subject: "Blog Account Deletion Confirmation",
         html: pug.renderFile(this.generateDirPath("deleteAccount"), {
           username: this.generateUppercaseUsername(args.username),
           subHead: `Account Deletion`,
@@ -84,9 +84,9 @@ export class Email {
   async sendForgotPasswordPin(args: SendForgotPasswordPinArgsT) {
     try {
       await this.transporter().sendMail({
-        from: "<APP>",
+        from: "Blog",
         to: args.to,
-        subject: "<APP> Forgot Password",
+        subject: "Blog Forgot Password",
         html: pug.renderFile(this.generateDirPath("forgotPassword"), {
           username: this.generateUppercaseUsername(args.username),
           pin: args.pin,

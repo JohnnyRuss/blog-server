@@ -2,20 +2,29 @@ import { Async } from "../lib";
 import { Category, UserTrace } from "../models";
 
 export const getCategories = Async(async (req, res) => {
-  const { limit, userbased } = req.query;
+  const { limit, userbased, search, extract } = req.query;
   const incomingUser = req.incomingUser;
 
   const trace = incomingUser
     ? await UserTrace.findOne({ user: incomingUser._id })
     : { views: [], interests: [] };
 
-  const userTrace = Array.from(
-    new Set((trace?.views || []).concat(trace?.interests || []))
-  );
+  const userViews = trace?.views || [];
+  const userInterests = trace?.interests || [];
+  const userTrace = Array.from(new Set(userViews.concat(userInterests)));
+
+  const doExtract = extract === "1";
 
   const queryLimit = limit ? +limit : 1e9;
 
   const data = await Category.aggregate([
+    {
+      $match: {
+        title: { $regex: search || "", $options: "i" },
+        ...(doExtract ? { _id: { $nin: userInterests } } : {}),
+      },
+    },
+
     {
       $addFields: {
         sort: {

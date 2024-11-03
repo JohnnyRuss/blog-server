@@ -18,4 +18,17 @@ Router.route("/lists/:listId")
   .post(checkAuth, userTraceController.saveList)
   .delete(checkAuth, userTraceController.removeSavedList);
 
+Router.route("/interests")
+  .get(checkAuth, userTraceController.getUserInterests)
+  .post(checkAuth, userTraceController.configureUserInterests);
+
+Router.route("/interests/check").post(
+  checkAuth,
+  userTraceController.checkIsConfigured
+);
+
+Router.route("/interests/:categoryId")
+  .patch(checkAuth, userTraceController.addUserInterest)
+  .delete(checkAuth, userTraceController.removeUserInterest);
+
 export default Router;

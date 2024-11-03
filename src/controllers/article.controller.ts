@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { AppError, Async, API_FeatureUtils } from "../lib";
 import { Article, Category, UserTrace, UserList } from "../models";
 import { CategoryT as CategoryDocT } from "../types/models/category.types";
+import { ArticleT as ArticleDocT } from "../types/models/article.types";
 
 type CategoryT = CategoryDocT & { isNew?: boolean; _id: string };
 
@@ -102,31 +103,87 @@ export const getArticle = Async(async (req, res, next) => {
 export const getTopArticle = Async(async (req, res, next) => {
   const incomingUser = req.incomingUser;
 
-  const queryObject = incomingUser
-    ? {
-        author: {
-          $ne: incomingUser
-            ? new mongoose.Types.ObjectId(incomingUser._id)
-            : "",
+  const queryObject: { [key: string]: any } = {};
+  let candidateCategories: Array<mongoose.Types.ObjectId> = [];
+
+  if (incomingUser) {
+    const userTrace = await UserTrace.findOne({
+      user: incomingUser._id,
+    }).populate("history.article");
+
+    if (!userTrace) return;
+
+    const userInterests = userTrace.interests.map((interestId) =>
+      interestId.toString()
+    );
+    const userViews = userTrace.views.map((viewId) => viewId.toString());
+    const userHistoryCategories = userTrace.history.flatMap(
+      (history) =>
+        (history.article as unknown as ArticleDocT)?.categories.map(
+          (category) => category.toString()
+        ) || []
+    );
+
+    candidateCategories = Array.from(
+      new Set(userInterests.concat(userViews).concat(userHistoryCategories))
+    ).map((category) => new mongoose.Types.ObjectId(category));
+
+    queryObject.author = { $ne: new mongoose.Types.ObjectId(incomingUser._id) };
+    if (candidateCategories.length > 0)
+      queryObject.categories = { $in: candidateCategories };
+  }
+
+  let [topArticle] = await Article.aggregate([
+    { $match: queryObject },
+    {
+      $addFields: {
+        commonCategories: {
+          $size: { $setIntersection: ["$categories", candidateCategories] },
         },
-      }
-    : {};
+      },
+    },
+    { $sort: { commonCategories: -1, views: -1 } },
+    { $limit: 1 },
+    {
+      $lookup: {
+        from: "users",
+        localField: "author",
+        foreignField: "_id",
+        as: "author",
+        pipeline: [
+          {
+            $project: { _id: 1, username: 1, avatar: 1, fullname: 1, email: 1 },
+          },
+        ],
+      },
+    },
+    { $unwind: "$author" },
+    {
+      $lookup: {
+        from: "categories",
+        localField: "categories",
+        foreignField: "_id",
+        as: "categories",
+        pipeline: [{ $project: { _id: 1, title: 1, color: 1, query: 1 } }],
+      },
+    },
+  ]);
 
-  const [article] = await Article.find(queryObject)
-    .sort("-views")
-    .limit(1)
-    .populate({
-      path: "author",
-      select: "_id username avatar fullname email",
-    })
-    .populate({
-      path: "categories",
-      select: "_id title color query",
-    });
+  if (!topArticle) {
+    const articles = await Article.find({ author: { $ne: incomingUser._id } })
+      .sort("-createdAt -views")
+      .skip(4)
+      .limit(1)
+      .populate({ path: "categories", select: "_id title color query" })
+      .populate({
+        path: "author",
+        select: "_id username avatar fullname email",
+      });
 
-  if (!article) return next(new AppError(404, "Article does not exists"));
+    topArticle = articles[0];
+  }
 
-  res.status(200).json(article);
+  res.status(200).json(topArticle);
 });
 
 export const getAllArticles = Async(async (req, res, next) => {
@@ -151,12 +208,15 @@ export const getAllArticles = Async(async (req, res, next) => {
   if (userbased === "1" && incomingUser) {
     const trace = await UserTrace.findOne({ user: incomingUser._id });
 
-    Array.from(
-      new Set((trace?.views || []).concat(trace?.interests || []))
-    ).forEach((c) => userTrace.push(c));
+    const userViews = trace?.views || [];
+    const userInterests = trace?.interests || [];
+
+    Array.from(new Set(userInterests.concat(userViews))).forEach((c) =>
+      userTrace.push(c)
+    );
   }
 
-  const categoryLookup = {
+  const categoryLookupStage = {
     $lookup: {
       from: "categories",
       localField: "categories",
@@ -175,93 +235,64 @@ export const getAllArticles = Async(async (req, res, next) => {
     },
   };
 
+  const authorLookupStage = {
+    from: "users",
+    localField: "author",
+    foreignField: "_id",
+    as: "author",
+    pipeline: [
+      {
+        $project: {
+          _id: 1,
+          email: 1,
+          avatar: 1,
+          username: 1,
+          fullname: 1,
+        },
+      },
+    ],
+  };
+
+  const paginationStage = [
+    { ...categoryLookupStage },
+
+    { $match: { ...filterObject } },
+
+    { $group: { _id: null, sum: { $sum: 1 } } },
+
+    { $project: { _id: 0 } },
+  ];
+
   const [data] = await Article.aggregate([
     {
       $facet: {
-        pagination: [
-          { ...categoryLookup },
-
-          {
-            $match: {
-              ...filterObject,
-            },
-          },
-
-          {
-            $group: {
-              _id: null,
-              sum: { $sum: 1 },
-            },
-          },
-
-          {
-            $project: {
-              _id: 0,
-            },
-          },
-        ],
+        pagination: paginationStage,
         articles: [
-          {
-            $unset: ["__v", "updatedAt"],
-          },
+          { $unset: ["__v", "updatedAt"] },
 
-          { ...categoryLookup },
+          { ...categoryLookupStage },
 
-          {
-            $match: { ...filterObject },
-          },
+          { $match: { ...filterObject } },
 
           {
             $addFields: {
               common: {
-                $size: {
-                  $setIntersection: ["$categories", userTrace],
-                },
+                $size: { $setIntersection: ["$categories._id", userTrace] },
               },
             },
           },
 
-          {
-            $sort: {
-              ...sortObject,
-            },
-          },
+          { $sort: { ...sortObject } },
 
-          {
-            $skip: paginationObject.skip,
-          },
+          { $skip: paginationObject.skip },
 
-          {
-            $limit: paginationObject.limit,
-          },
+          { $limit: paginationObject.limit },
 
-          {
-            $lookup: {
-              from: "users",
-              localField: "author",
-              foreignField: "_id",
-              as: "author",
-              pipeline: [
-                {
-                  $project: {
-                    _id: 1,
-                    email: 1,
-                    avatar: 1,
-                    username: 1,
-                    fullname: 1,
-                  },
-                },
-              ],
-            },
-          },
+          { $lookup: authorLookupStage },
 
-          {
-            $unwind: "$author",
-          },
+          { $unwind: "$author" },
 
-          {
-            $unset: "common",
-          },
+          { $unset: "common" },
         ],
       },
     },
@@ -281,6 +312,7 @@ export const getAllArticles = Async(async (req, res, next) => {
 
 export const getRelatedArticles = Async(async (req, res, next) => {
   const { slug } = req.params;
+  const incomingUser = req.incomingUser;
 
   const article = await Article.findOne({ slug });
 
@@ -294,6 +326,7 @@ export const getRelatedArticles = Async(async (req, res, next) => {
     {
       $match: {
         slug: { $ne: slug },
+        author: { $ne: incomingUser._id },
         categories: { $in: trace },
       },
     },
@@ -366,8 +399,13 @@ export const getRelatedArticles = Async(async (req, res, next) => {
     },
   ]);
 
-  if (data.length <= 0)
-    data = await Article.find()
+  if (data.length < 6) {
+    const dataIds = data.map((article) => article._id.toString());
+
+    const dataToFill = await Article.find({
+      _id: { $nin: dataIds },
+      author: { $ne: incomingUser._id },
+    })
       .select("_id author body categories createdAt likes slug title views")
       .populate([
         {
@@ -380,7 +418,10 @@ export const getRelatedArticles = Async(async (req, res, next) => {
         },
       ])
       .sort("-views")
-      .limit(6);
+      .limit(6 - data.length);
+
+    data = data.concat(dataToFill);
+  }
 
   res.status(200).json(data);
 });
