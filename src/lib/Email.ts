@@ -39,7 +39,7 @@ export class Email {
     return nodemailer.createTransport({
       host: this.MAILER_HOST!,
       port: this.MAILER_PORT,
-      secure: false,
+      secure: NODE_MODE === "PROD" ? true : false,
       auth: {
         user: this.MAILER_USERNAME,
         pass: this.MAILER_PASSWORD,
