@@ -53,8 +53,9 @@ App.use("/api/v1/comments", commentRoutes);
 
 App.get("/views", async (req, res, next) => {
   res.status(200).render("welcome", {
-    username: "",
-    subHead: "",
+    username: "Joni Rusieshvili",
+    subHead: "Hi There 👋",
+    pin: 1212,
   });
 });
 
