@@ -53,7 +53,7 @@ App.use("/api/v1/dashboard", dashboardRoutes);
 App.use("/api/v1/comments", commentRoutes);
 
 App.get("/views", async (req, res, next) => {
-  res.status(200).render("deleteAccount", {
+  res.status(200).render("welcome", {
     username: "Joni Rusieshvili",
     subHead: "Hi There 👋",
     pin: 1212,
