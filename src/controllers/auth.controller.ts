@@ -27,7 +27,7 @@ export const googleLogin = Async(async (req, res, next) => {
       privacy: "PRIVATE",
     });
 
-    await Email.sendWelcome({ to: email, username: username });
+    await Email.sendWelcome({ to: email, username: user.fullname });
   }
 
   const { accessToken } = JWT.assignToken({
@@ -158,7 +158,7 @@ export const forgotPassword = Async(async (req, res, next) => {
   await Email.sendForgotPasswordPin({
     to: email,
     pin: +pin,
-    username: user.username,
+    username: user.fullname,
   });
 
   res.status(201).json({ emailIsSent: true });
