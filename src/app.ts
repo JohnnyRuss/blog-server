@@ -9,7 +9,7 @@ import mongoSanitize from "express-mongo-sanitize";
 
 import { AppError } from "./lib";
 import { NODE_MODE } from "./config/env";
-import { setHeaders, setCors } from "./middlewares/index";
+import { setHeaders, setCors, setAssetsMiddleware } from "./middlewares/index";
 import errorController from "./controllers/errorController";
 
 import authRoutes from "./routes/auth.routes";
@@ -31,6 +31,7 @@ App.use(express.json());
 App.use(express.urlencoded({ extended: true }));
 App.use(express.static(path.join(__dirname, "public")));
 
+App.use(setAssetsMiddleware);
 App.use(cookieParser());
 App.use(setCors());
 App.use(setHeaders);
@@ -52,7 +53,7 @@ App.use("/api/v1/dashboard", dashboardRoutes);
 App.use("/api/v1/comments", commentRoutes);
 
 App.get("/views", async (req, res, next) => {
-  res.status(200).render("welcome", {
+  res.status(200).render("deleteAccount", {
     username: "Joni Rusieshvili",
     subHead: "Hi There 👋",
     pin: 1212,

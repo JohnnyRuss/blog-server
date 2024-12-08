@@ -1,14 +1,30 @@
 extends base
 block content
-  p.things Here are a few things to get you started:
-  ul.things__list
-    li.things__list-item
-      p.things__list-item--head **Explore Your Dashboard**
-      p.things__list-item--msg Log in to your account and explore the features and functionalities available in your dashboard. If you have any questions, our support team is here to help.
-    li.things__list-item
-      p.things__list-item--head **Complete Your Profile**
-      p.things__list-item--msg Personalize your profile by adding a profile picture and updating your information. This helps us tailor your experience and connect you with relevant content.
-  p.epilog Once again, welcome to the Blog community! We're excited to have you with us.
-  p.regards Best regards,
-  p.regards The
-    strong &nbsp;Blog Team
+  tr
+    td
+      p.tertiary-text Here are a few things to get you started:
+  tr
+    td
+      table.list
+        tr
+          td 
+            p.list-item--head **Explore Your Dashboard**
+        tr
+          td
+            p.list-item--msg Log in to your account and explore the features and functionalities available in your dashboard. If you have any questions, our support team is here to help.
+        tr
+          td
+            p.list-item--head **Complete Your Profile**
+        tr
+          td
+            p.list-item--msg Personalize your profile by adding a profile picture and updating your information. This helps us tailor your experience and connect you with relevant content.
+  tr
+    td
+      p.important-msg Once again, welcome to the Blog community! We're excited to have you with us.
+  tr.regards
+    td
+      p Best regards,
+  tr.regards.last-child
+    td
+      p The
+        strong &nbsp;Blog Team
