@@ -1,10 +1,12 @@
 import crypto from "crypto";
-import { promisify } from "util";
-import { Response } from "express";
+import { CookieOptions, Response } from "express";
 import jwt from "jsonwebtoken";
+
+import { promisify } from "util";
 
 import {
   NODE_MODE,
+  APP_ORIGIN,
   JWT_ACCESS_SECRET,
   JWT_REFRESH_SECRET,
 } from "../config/env";
@@ -41,17 +43,15 @@ class JWT {
 
     const sessionToken = crypto.randomBytes(32).toString("hex");
 
-    const cookieOptions: {
-      httpOnly: boolean;
-      secure: boolean;
-      sameSite?: boolean;
-    } = {
-      httpOnly: true,
-      secure: false,
-      sameSite: false,
-    };
+    const removeProtocol = (url: string) => url.replace(/^https?:\/\//, "");
 
-    if (NODE_MODE === "PROD") cookieOptions.secure = true;
+    const cookieOptions: CookieOptions = {
+      path: "/",
+      httpOnly: true,
+      sameSite: "none",
+      secure: NODE_MODE === "PROD",
+      domain: removeProtocol(APP_ORIGIN),
+    };
 
     res.cookie("session", sessionToken, cookieOptions);
 

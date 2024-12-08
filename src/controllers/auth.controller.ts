@@ -1,8 +1,8 @@
 import crypto from "crypto";
+import { CookieOptions } from "express";
 import { User, UserTrace, UserList } from "../models";
 import { Async, AppError, JWT, Email } from "../lib";
 import { NODE_MODE, APP_ORIGIN } from "../config/env";
-import { CookieOptions } from "express";
 
 export const googleLogin = Async(async (req, res, next) => {
   const { email, avatar, username } = req.body;
@@ -218,13 +218,10 @@ export const updatePassword = Async(async (req, res, next) => {
       new AppError(400, "password confirmation must to match password")
     );
 
-  const err = (reason: string) =>
-    next(new AppError(403, `Invalid request. Please try again. - ${reason}`));
+  const err = () =>
+    next(new AppError(403, `Invalid request. Please try again.`));
 
-  if (!password_reset_token)
-    return err(
-      `password reset token is not presented - ${password_reset_token}`
-    );
+  if (!password_reset_token) return err();
 
   const hashedToken = crypto
     .createHash("sha256")
@@ -233,13 +230,13 @@ export const updatePassword = Async(async (req, res, next) => {
 
   const user = await User.findOne({ passwordResetToken: hashedToken });
 
-  if (!user) return err("cant find user with hashed token");
+  if (!user) return err();
 
   res.clearCookie("password_reset_token");
 
   const isExpired = Date.now() > new Date(user.passwordResetAt!).getTime();
 
-  if (isExpired) return err("token is expired");
+  if (isExpired) return err();
 
   user.passwordResetToken = "";
   user.passwordResetAt = "";
