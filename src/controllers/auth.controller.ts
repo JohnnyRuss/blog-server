@@ -215,10 +215,11 @@ export const updatePassword = Async(async (req, res, next) => {
       new AppError(400, "password confirmation must to match password")
     );
 
-  const err = () =>
-    next(new AppError(403, "Invalid request. Please try again."));
+  const err = (reason: string) =>
+    next(new AppError(403, `Invalid request. Please try again. - ${reason}`));
 
-  if (!password_reset_token) return err();
+  if (!password_reset_token)
+    return err("password reset token is not presented");
 
   const hashedToken = crypto
     .createHash("sha256")
@@ -227,13 +228,13 @@ export const updatePassword = Async(async (req, res, next) => {
 
   const user = await User.findOne({ passwordResetToken: hashedToken });
 
-  if (!user) return err();
+  if (!user) return err("cant find user with hashed token");
 
   res.clearCookie("password_reset_token");
 
   const isExpired = Date.now() > new Date(user.passwordResetAt!).getTime();
 
-  if (isExpired) return err();
+  if (isExpired) return err("token is expired");
 
   user.passwordResetToken = "";
   user.passwordResetAt = "";
