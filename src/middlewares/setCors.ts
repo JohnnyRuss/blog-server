@@ -4,6 +4,7 @@ import { APP_ORIGINS } from "../config/env";
 export default function setCors() {
   return cors({
     credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH"],
     origin(requestOrigin, callback) {
       const notAllowedOriginErrorMessage = `This site ${requestOrigin} does not have an access. Only specific domains are allowed to access it.`;
 

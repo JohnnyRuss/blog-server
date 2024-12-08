@@ -10,7 +10,7 @@ const PORT = parseInt(process.env.PORT || "4000");
 const DB_APP_CONNECTION = process.env.DB_APP_CONNECTION || "";
 
 // APP ORIGINS
-const APP_ORIGIN = process.env.APP_ORIGIN;
+const APP_ORIGIN = process.env.APP_ORIGIN || "";
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN;
 
 const APP_ORIGINS = [CLIENT_ORIGIN];

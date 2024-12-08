@@ -1,7 +1,8 @@
 import crypto from "crypto";
 import { User, UserTrace, UserList } from "../models";
 import { Async, AppError, JWT, Email } from "../lib";
-import { NODE_MODE } from "../config/env";
+import { NODE_MODE, APP_ORIGIN } from "../config/env";
+import { CookieOptions } from "express";
 
 export const googleLogin = Async(async (req, res, next) => {
   const { email, avatar, username } = req.body;
@@ -193,13 +194,15 @@ export const confirmEmail = Async(async (req, res, next) => {
 
   const passwordResetToken = await user.createPasswordResetToken();
 
-  const cookieOptions = {
-    httpOnly: true,
-    secure: false,
-    sameSite: false,
-  };
+  const removeProtocol = (url: string) => url.replace(/^https?:\/\//, "");
 
-  if (NODE_MODE === "PROD") cookieOptions.secure = true;
+  const cookieOptions: CookieOptions = {
+    path: "/",
+    httpOnly: true,
+    sameSite: "none",
+    secure: NODE_MODE === "PROD",
+    domain: removeProtocol(APP_ORIGIN),
+  };
 
   res.cookie("password_reset_token", passwordResetToken, cookieOptions);
 
@@ -219,7 +222,9 @@ export const updatePassword = Async(async (req, res, next) => {
     next(new AppError(403, `Invalid request. Please try again. - ${reason}`));
 
   if (!password_reset_token)
-    return err("password reset token is not presented");
+    return err(
+      `password reset token is not presented - ${password_reset_token}`
+    );
 
   const hashedToken = crypto
     .createHash("sha256")
