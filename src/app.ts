@@ -21,6 +21,7 @@ import userTraceRoutes from "./routes/userTrace.routes";
 import userFollowRoutes from "./routes/userFollow.routes";
 import dashboardRoutes from "./routes/dashboard.routes";
 import commentRoutes from "./routes/comments.routes";
+import checkHealthRoutes from "./routes/checkHealth.routes";
 
 const App = express();
 
@@ -42,6 +43,7 @@ App.use(mongoSanitize());
 
 NODE_MODE === "DEV" && App.use(morgan("dev"));
 
+App.use("/api/v1/health", checkHealthRoutes);
 App.use("/api/v1/auth", authRoutes);
 App.use("/api/v1/users", userRoutes);
 App.use("/api/v1/follow", userFollowRoutes);
